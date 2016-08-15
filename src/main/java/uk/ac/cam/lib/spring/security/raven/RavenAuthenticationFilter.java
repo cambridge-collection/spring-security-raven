@@ -5,6 +5,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter;
+import org.springframework.security.web.authentication.SavedRequestAwareAuthenticationSuccessHandler;
 import org.springframework.security.web.savedrequest.RequestCache;
 import org.springframework.security.web.util.matcher.AndRequestMatcher;
 import org.springframework.security.web.util.matcher.AnyRequestMatcher;
@@ -14,6 +15,7 @@ import org.springframework.util.Assert;
 import org.springframework.util.StreamUtils;
 import org.springframework.web.bind.ServletRequestUtils;
 import org.springframework.web.util.UriUtils;
+import uk.ac.cam.lib.spring.security.raven.vedorised.SavedRequestAwareWrapper;
 import uk.ac.cam.ucs.webauth.WebauthException;
 import uk.ac.cam.ucs.webauth.WebauthRequest;
 import uk.ac.cam.ucs.webauth.WebauthResponse;
@@ -29,6 +31,7 @@ import java.time.OffsetDateTime;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalField;
 import java.util.Arrays;
+import java.util.Optional;
 import java.util.regex.Pattern;
 
 /**
@@ -118,12 +121,16 @@ public class RavenAuthenticationFilter
      * @param currentResponse
      * @return The original request.
      */
-    private HttpServletRequest getInterceptedRequest(
+    private Optional<HttpServletRequest> getInterceptedRequest(
         HttpServletRequest currentRequest,
         HttpServletResponse currentResponse) {
 
-        return getRequestCache()
-            .getMatchingRequest(currentRequest, currentResponse);
+        // Can't use getRequestCache().getMatchingRequest() because it removes
+        // the entry from the cache, which would prevent the auth success
+        // handler redirecting to the original page.
+        return Optional.ofNullable(getRequestCache()
+                .getRequest(currentRequest, currentResponse))
+            .map(sr -> new SavedRequestAwareWrapper(sr, currentRequest));
     }
 
     private String getAuthResponse(HttpServletRequest request) {
@@ -155,8 +162,13 @@ public class RavenAuthenticationFilter
                 "Invalid " + this.getResponseParameterName() + " parameter", e);
         }
 
+        HttpServletRequest originalRequest =
+            getInterceptedRequest(request, response)
+                .orElseThrow(() -> new RavenAuthenticationException(
+                    "Original request not in RequestCache"));
+
         WebauthRequest authRequest = getRavenRequestCreator()
-            .createLoginRequest(getInterceptedRequest(request, response));
+            .createLoginRequest(originalRequest);
 
         if(authRequest == null)
             throw new IllegalStateException(

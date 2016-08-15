@@ -6,12 +6,16 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameter;
 import org.junit.runners.Parameterized.Parameters;
+import org.mockito.Answers;
 import org.springframework.http.HttpMethod;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.web.PortResolverImpl;
+import org.springframework.security.web.savedrequest.DefaultSavedRequest;
 import org.springframework.security.web.savedrequest.NullRequestCache;
 import org.springframework.security.web.savedrequest.RequestCache;
+import org.springframework.security.web.savedrequest.SavedRequest;
 import org.springframework.security.web.util.matcher.AnyRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
@@ -51,9 +55,14 @@ public class RavenAuthenticationFilterTest {
     private WebauthRequest reqCreatorRequest;
 
     private HttpServletRequest preRavenRequest, postRavenRequest;
+
     private HttpServletResponse resp;
 
     private RequestCache requestCache;
+
+    private static SavedRequest savedRequest(HttpServletRequest req) {
+        return new DefaultSavedRequest(req, new PortResolverImpl());
+    }
 
     @Before
     public void setUp() {
@@ -68,6 +77,8 @@ public class RavenAuthenticationFilterTest {
                      RESPONSE_PARAM, AUTH_RESPONSE)
             .buildRequest(null);
 
+        SavedRequest savedPreRavenRequest = savedRequest(preRavenRequest);
+
         reqCreatorRequest = new WebauthRequest();
         reqCreatorRequest.set("url", "http://example.com/foo");
 
@@ -76,8 +87,11 @@ public class RavenAuthenticationFilterTest {
             .thenReturn(reqCreatorRequest);
 
         requestCache = mock(RequestCache.class);
-        when(requestCache.getMatchingRequest(postRavenRequest, resp))
-            .thenReturn(preRavenRequest);
+        when(requestCache.getRequest(postRavenRequest, resp))
+            .thenReturn(savedPreRavenRequest);
+
+        doReturn(reqCreatorRequest)
+            .when(reqCreator).createLoginRequest(anyObject());
     }
 
     @Test
@@ -112,8 +126,8 @@ public class RavenAuthenticationFilterTest {
         RavenAuthenticationToken token = (RavenAuthenticationToken)auth;
         assertThat(token.isAuthenticated(), is(false));
 
-        verify(requestCache).getMatchingRequest(postRavenRequest, resp);
-        verify(reqCreator).createLoginRequest(preRavenRequest);
+        verify(requestCache).getRequest(postRavenRequest, resp);
+        verify(reqCreator).createLoginRequest(anyObject());
 
         assertThat(token.getRavenRequest().get(),
                    is(equalTo(reqCreatorRequest)));

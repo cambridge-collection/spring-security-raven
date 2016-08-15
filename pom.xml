@@ -57,9 +57,14 @@
 
         <configuration>
           <haltOnFailure>true</haltOnFailure>
+
           <rules>
             <rule>
-              <element>BUNDLE</element>
+              <element>PACKAGE</element>
+              <includes>
+                <include>uk.ac.cam.lib.spring.security.raven</include>
+                <include>uk.ac.cam.lib.spring.security.raven.hooks</include>
+              </includes>
               <limits>
                 <limit>
                   <counter>INSTRUCTION</counter>
