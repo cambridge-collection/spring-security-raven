@@ -54,6 +54,27 @@
             </goals>
           </execution>
         </executions>
+
+        <configuration>
+          <haltOnFailure>true</haltOnFailure>
+          <rules>
+            <rule>
+              <element>BUNDLE</element>
+              <limits>
+                <limit>
+                  <counter>INSTRUCTION</counter>
+                  <value>COVEREDRATIO</value>
+                  <minimum>0.7</minimum>
+                </limit>
+                <limit>
+                  <counter>CLASS</counter>
+                  <value>MISSEDCOUNT</value>
+                  <maximum>0</maximum>
+                </limit>
+              </limits>
+            </rule>
+          </rules>
+        </configuration>
       </plugin>
 
       <plugin>
