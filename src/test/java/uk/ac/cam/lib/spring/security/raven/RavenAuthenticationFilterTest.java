@@ -1,14 +1,18 @@
 package uk.ac.cam.lib.spring.security.raven;
 
+import org.hamcrest.Description;
+import org.hamcrest.Matcher;
+import org.hamcrest.TypeSafeMatcher;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameter;
 import org.junit.runners.Parameterized.Parameters;
-import org.mockito.Answers;
+import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpMethod;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.PortResolverImpl;
@@ -32,10 +36,12 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Arrays;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.*;
-import static org.junit.Assert.assertThat;
+import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
 
@@ -102,7 +108,9 @@ public class RavenAuthenticationFilterTest {
     @Test(expected=AuthenticationException.class)
     public void testAttemptAuthenticationThrowsWithoutAuthQueryParam() throws IOException, ServletException {
         RavenAuthenticationFilter filter =
-            new RavenAuthenticationFilter(reqCreator, new NullRequestCache());
+            new RavenAuthenticationFilter(
+                mock(AuthenticationManager.class), reqCreator,
+                new NullRequestCache());
 
         HttpServletRequest badAuthRequest = MockMvcRequestBuilders.request(
             HttpMethod.GET, "http://example.com/callback?no-param-here")
@@ -112,22 +120,33 @@ public class RavenAuthenticationFilterTest {
     }
 
     @Test
-    public void testFilterCreatesUnauthenticatedRavenToken()
+    public void testFilterPassesUnauthenticatedRavenTokenToAuthManager()
         throws IOException, ServletException, WebauthException {
+
+        AuthenticationManager authManager = mock(AuthenticationManager.class);
+        RavenAuthenticationToken result = mock(RavenAuthenticationToken.class);
+
+        doReturn(result).when(authManager).authenticate(anyObject());
 
         RavenAuthenticationFilter filter =
             new RavenAuthenticationFilter(
-                reqCreator, requestCache, AnyRequestMatcher.INSTANCE,
-                TEST_CLOCK, RESPONSE_PARAM);
+                authManager, reqCreator, requestCache,
+                AnyRequestMatcher.INSTANCE, TEST_CLOCK, RESPONSE_PARAM);
 
-        Authentication auth = filter.attemptAuthentication(postRavenRequest, resp);
+        Authentication actualResult =
+            filter.attemptAuthentication(postRavenRequest, resp);
 
-        assertThat(auth, is(instanceOf(RavenAuthenticationToken.class)));
-        RavenAuthenticationToken token = (RavenAuthenticationToken)auth;
-        assertThat(token.isAuthenticated(), is(false));
+        assertThat(actualResult, is(result));
 
         verify(requestCache).getRequest(postRavenRequest, resp);
         verify(reqCreator).createLoginRequest(anyObject());
+
+        // Verify the token passed to the AuthenticationManager
+        ArgumentCaptor<Authentication> authCaptor = ArgumentCaptor.forClass(Authentication.class);
+        verify(authManager, times(1)).authenticate(authCaptor.capture());
+
+        RavenAuthenticationToken token =
+            (RavenAuthenticationToken)authCaptor.getValue();
 
         assertThat(token.getRavenRequest().get(),
                    is(equalTo(reqCreatorRequest)));
@@ -135,6 +154,29 @@ public class RavenAuthenticationFilterTest {
                    is(equalTo(AUTH_RESPONSE)));
         assertThat(token.getResponseReceivedTime().get(),
                    is(equalTo(TEST_TIME)));
+    }
+
+    private static <T> Matcher<T> satisfiesPredicate(Predicate<T> predicate) {
+        return satisfiesPredicate(
+            predicate,
+            desc -> desc.appendText("should satisfy predicate: ")
+                        .appendValue(predicate));
+    }
+
+    private static <T> Matcher<T> satisfiesPredicate(
+        Predicate<T> predicate, Consumer<Description> describer) {
+
+        return new TypeSafeMatcher<T>() {
+            @Override
+            protected boolean matchesSafely(T item) {
+                return predicate.test(item);
+            }
+
+            @Override
+            public void describeTo(Description description) {
+                describer.accept(description);
+            }
+        };
     }
 
     @RunWith(Parameterized.class)

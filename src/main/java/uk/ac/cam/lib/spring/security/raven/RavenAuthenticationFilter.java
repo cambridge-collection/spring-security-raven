@@ -52,15 +52,16 @@ public class RavenAuthenticationFilter
     private final Clock clock;
 
     public RavenAuthenticationFilter(
+        AuthenticationManager authenticationManager,
         RavenRequestCreator ravenRequestCreator, RequestCache requestCache) {
 
-        this(ravenRequestCreator, requestCache,
-             AnyRequestMatcher.INSTANCE,
-            Clock.systemUTC(),
-            RESPONSE_PARAMETER_NAME);
+        this(authenticationManager, ravenRequestCreator, requestCache,
+             AnyRequestMatcher.INSTANCE, Clock.systemUTC(),
+             RESPONSE_PARAMETER_NAME);
     }
 
     public RavenAuthenticationFilter(
+        AuthenticationManager authenticationManager,
         RavenRequestCreator ravenRequestCreator,
         RequestCache requestCache,
         RequestMatcher requiresAuthenticationRequestMatcher,
@@ -71,15 +72,24 @@ public class RavenAuthenticationFilter
             requiresAuthenticationRequestMatcher,
             queryContainsResponseParamRequestMatcher(responseParameterName)));
 
+        Assert.notNull(authenticationManager);
         Assert.notNull(ravenRequestCreator);
         Assert.notNull(requestCache);
         Assert.notNull(clock);
         Assert.hasText(responseParameterName);
 
+        super.setAuthenticationManager(authenticationManager);
         this.ravenRequestCreator = ravenRequestCreator;
         this.requestCache = requestCache;
         this.clock = clock;
         this.responseParameterName = responseParameterName;
+    }
+
+    @Override
+    public void setAuthenticationManager(
+        AuthenticationManager authenticationManager) {
+
+        throw new RuntimeException("Use the constructor argument");
     }
 
     static RequestMatcher queryContainsResponseParamRequestMatcher(
@@ -174,6 +184,7 @@ public class RavenAuthenticationFilter
             throw new IllegalStateException(
                 "RavenRequestCreator.createLoginRequest() returned null");
 
-        return new RavenAuthenticationToken(authRequest, authResponse, now);
+        return this.getAuthenticationManager().authenticate(
+            new RavenAuthenticationToken(authRequest, authResponse, now));
     }
 }
