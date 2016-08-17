@@ -56,7 +56,7 @@ public class RavenAuthenticationEntryPoint implements AuthenticationEntryPoint {
 
     private URI getLoginUrl(WebauthRequest request) {
         return UriComponentsBuilder.fromUri(getRavenAuthUri())
-            .replaceQuery(request.toQString())
+            .replaceQuery(request.toQString().replace("+", "%20"))
             .build(true)
             .toUri();
     }
