@@ -189,7 +189,9 @@ public class RavenAuthenticationFilterTest {
                 {"foo", "https://example.com/blah/blah?foo=abcd&xyz",
                     "POST", true},
                 {"WLS-Response", "https://example.com/blah/blah?" +
-                    "x=y&WLS-Response=abcd&xyz", "GET", true}
+                    "x=y&WLS-Response=abcd&xyz", "GET", true},
+                {"WLS-Response", "https://example.com/blah/blah",
+                    "GET", false}
             }).stream()
                 .map(x -> { x[1] = URI.create((String)x[1]); return x; })
                 .collect(Collectors.toList());

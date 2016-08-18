@@ -95,16 +95,18 @@ public class RavenAuthenticationFilter
     static RequestMatcher queryContainsResponseParamRequestMatcher(
         String responseParameterName) {
 
-        return r -> Arrays.stream(r.getQueryString().split("&"))
-            .map(p -> {
-                try {
-                    return UriUtils.decode(p.split("=", 2)[0], "UTF-8");
-                }
-                catch(UnsupportedEncodingException e) {
-                    throw new AssertionError("Won't happen", e);
-                }
-            })
-            .anyMatch(p -> p.equals(responseParameterName));
+        return r -> Optional.ofNullable(r.getQueryString())
+            .map(query -> Arrays.stream(query.split("&"))
+                .map(p -> {
+                    try {
+                        return UriUtils.decode(p.split("=", 2)[0], "UTF-8");
+                    }
+                    catch(UnsupportedEncodingException e) {
+                        throw new AssertionError("Won't happen", e);
+                    }
+                })
+                .anyMatch(p -> p.equals(responseParameterName))
+            ).orElse(false);
     }
 
     public String getResponseParameterName() {
