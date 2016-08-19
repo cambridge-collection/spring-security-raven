@@ -11,6 +11,7 @@ import uk.ac.cam.ucs.webauth.WebauthResponse;
 import uk.ac.cam.ucs.webauth.WebauthValidator;
 
 import java.time.Instant;
+import java.util.Optional;
 
 /**
  * Validates {@link RavenAuthenticationToken}s for a {@link ProviderManager}.
@@ -62,11 +63,18 @@ public class RavenAuthenticationProvider implements AuthenticationProvider {
         Instant authResponseTimestamp = token.getResponseReceivedTime()
             .orElseThrow(this::reportClearedCredentials);
 
+        Optional<Integer> status = Optional.empty();
         try {
+            status = Optional.of(response.getInt("status"));
             getWebauthValidator().validate(
                 request, response, authResponseTimestamp.toEpochMilli());
         }
         catch(WebauthException e) {
+            if(status.isPresent() && status.get() != WebauthResponse.SUCCESS) {
+                throw new BadStatusRavenAuthenticationException(
+                    status.get(), e);
+            }
+
             throw new RavenAuthenticationException(
                 "Raven auth response did not validate", e);
         }
