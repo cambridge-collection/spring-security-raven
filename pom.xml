@@ -15,6 +15,12 @@
     <spring.security.version>4.1.1.RELEASE</spring.security.version>
   </properties>
 
+  <scm>
+    <connection>scm:git:ssh://git@bitbucket.org/CUDL/spring-security-raven.git</connection>
+    <developerConnection>scm:git:ssh://git@bitbucket.org/CUDL/spring-security-raven.git</developerConnection>
+    <url>https://bitbucket.org/CUDL/spring-security-raven</url>
+  </scm>
+
   <build>
     <plugins>
       <plugin>
@@ -117,6 +123,14 @@
         <version>3.5.1</version>
       </plugin>
     </plugins>
+
+    <extensions>
+      <extension>
+        <groupId>org.springframework.build</groupId>
+        <artifactId>aws-maven</artifactId>
+        <version>5.0.0.RELEASE</version>
+      </extension>
+    </extensions>
   </build>
 
   <reporting>
@@ -205,4 +219,32 @@
     </dependency>
 
   </dependencies>
+
+  <!-- Resolve private CUDL artifacts -->
+  <repositories>
+    <repository>
+      <id>cudl-aws-release</id>
+      <name>AWS Release Repository</name>
+      <url>s3://mvn.cudl.lib.cam.ac.uk/release</url>
+    </repository>
+    <repository>
+      <id>cudl-aws-snapshot</id>
+      <name>AWS Snapshot Repository</name>
+      <url>s3://mvn.cudl.lib.cam.ac.uk/snapshot</url>
+    </repository>
+  </repositories>
+
+  <!-- Use CUDL's private repo to deploy artifacts -->
+  <distributionManagement>
+    <repository>
+      <id>cudl-aws-release</id>
+      <name>AWS Release Repository</name>
+      <url>s3://mvn.cudl.lib.cam.ac.uk/release</url>
+    </repository>
+    <snapshotRepository>
+      <id>cudl-aws-snapshot</id>
+      <name>AWS Snapshot Repository</name>
+      <url>s3://mvn.cudl.lib.cam.ac.uk/snapshot</url>
+    </snapshotRepository>
+  </distributionManagement>
 </project>
