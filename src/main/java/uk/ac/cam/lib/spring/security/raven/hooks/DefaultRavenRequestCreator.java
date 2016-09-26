@@ -15,79 +15,137 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static uk.ac.cam.lib.spring.security.raven.hooks.DefaultRavenRequestCreator.Builder.DEFAULT_VERSION;
+
 
 public class DefaultRavenRequestCreator implements RavenRequestCreator {
 
-    private final Map<RequestParam, Object> values;
+    @FunctionalInterface
+    public interface PerRequestParamProducer {
+        Object getRequestValue(RequestParam param, HttpServletRequest request);
+    }
 
-    public DefaultRavenRequestCreator(Map<RequestParam, Object> values) {
+    private final Map<RequestParam, PerRequestParamProducer> valueProducers;
+
+    public static DefaultRavenRequestCreator fromFixedValues(Map<RequestParam, Object> values) {
         Assert.notNull(values);
 
-        this.values = Collections.unmodifiableMap(new EnumMap<>(values));
+        return fromPerRequestValues(values.entrySet().stream().collect(
+            Collectors.toMap(
+                e -> e.getKey(),
+                e -> staticProducer(e.getValue())
+            )
+        ));
+    }
+
+    public static DefaultRavenRequestCreator fromPerRequestValues(
+        Map<RequestParam, PerRequestParamProducer> valueProducers) {
+
+        return new DefaultRavenRequestCreator(valueProducers);
+    }
+
+    private DefaultRavenRequestCreator(
+        Map<RequestParam, PerRequestParamProducer> valueProducers) {
+
+        Assert.notNull(valueProducers);
+
+        this.valueProducers = Collections.unmodifiableMap(
+            new EnumMap<>(valueProducers));
         validate();
     }
 
+    private static PerRequestParamProducer staticProducer(Object value) {
+        return (p, r) -> value;
+    }
+
     private void validate() {
-        if(!this.getValues().keySet().containsAll(RequestParam.REQUIRED)) {
+        if(!this.valueProducers.keySet().containsAll(RequestParam.REQUIRED)) {
             throw new IllegalArgumentException(
                 "Not all required params were provided");
         }
-
-        this.values.forEach((param, value) -> {
-            try {
-                param.validate(value);
-            }
-            catch(IllegalArgumentException e) {
-                throw new IllegalArgumentException(String.format(
-                    "Invalid value for key %s: %s - %s",
-                    param, value, e.getMessage()), e);
-            }
-        });
-    }
-
-    public Map<RequestParam, Object> getValues() {
-        return this.values;
     }
 
     @Override
     public WebauthRequest createLoginRequest(HttpServletRequest httpRequest) {
         WebauthRequest request = new WebauthRequest();
 
-        this.getValues().forEach((param, value) ->
-            request.set(param.name(), value.toString()));
+        this.valueProducers.forEach((param, valueProducer) -> {
+            Object value = valueProducer.getRequestValue(param, httpRequest);
+
+            try {
+                param.validate(value);
+            }
+            catch(IllegalArgumentException e) {
+                throw new RuntimeException(String.format(
+                    "PerRequestParamProducer produced invalid value for key " +
+                    "%s: %s - %s", param, value, e.getMessage()), e);
+            }
+
+            request.set(param.name(), value.toString());
+        });
+
 
         return request;
     }
 
+    public static Builder builder(PerRequestParamProducer returnUrl) {
+        return builder(returnUrl, DEFAULT_VERSION);
+    }
+
+    public static Builder builder(PerRequestParamProducer returnUrl,
+                                  int version) {
+        return new Builder()
+            .withValue(RequestParam.ver, version)
+            .withDynamicValue(RequestParam.url, returnUrl);
+    }
+
     public static Builder builder(String returnUrl) {
-        return builder(returnUrl,  3);
+        return builder(returnUrl,  DEFAULT_VERSION);
     }
 
     public static Builder builder(String returnUrl, int version) {
         return new Builder()
-            .set(RequestParam.ver, version)
-            .set(RequestParam.url, returnUrl);
+            .withValue(RequestParam.ver, version)
+            .withValue(RequestParam.url, returnUrl);
     }
 
     public static class Builder {
         public static final int DEFAULT_VERSION = 3;
 
-        private final Map<RequestParam, Object> values;
+        private final Map<RequestParam, PerRequestParamProducer> valueProducers;
 
         public Builder() {
-            this.values = new EnumMap<>(RequestParam.class);
+            this.valueProducers = new EnumMap<>(RequestParam.class);
         }
 
-        public Builder set(RequestParam param, Object value) {
+        public Builder withValue(RequestParam param, String value) {
+            return _withValue(param, value);
+        }
+
+        public Builder withValue(RequestParam param, int value) {
+            return _withValue(param, value);
+        }
+
+        private Builder _withValue(RequestParam param, Object value) {
             Assert.notNull(param);
             Assert.notNull(value);
+            param.validate(value);
 
-            this.values.put(param, value);
+            return this.withDynamicValue(param, staticProducer(value));
+        }
+
+        public Builder withDynamicValue(
+            RequestParam param, PerRequestParamProducer producer) {
+
+            Assert.notNull(param);
+            Assert.notNull(producer);
+
+            this.valueProducers.put(param, producer);
             return this;
         }
 
         public DefaultRavenRequestCreator build() {
-            return new DefaultRavenRequestCreator(this.values);
+            return new DefaultRavenRequestCreator(this.valueProducers);
         }
     }
 

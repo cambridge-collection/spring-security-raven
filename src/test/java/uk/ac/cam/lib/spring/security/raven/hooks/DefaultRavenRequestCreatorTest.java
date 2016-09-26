@@ -5,6 +5,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import uk.ac.cam.lib.spring.security.raven.RavenRequestCreator;
 import uk.ac.cam.lib.spring.security.raven.hooks.DefaultRavenRequestCreator.RequestParam;
 import uk.ac.cam.ucs.webauth.WebauthRequest;
@@ -16,7 +17,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.junit.Assert.assertThat;
+import static org.junit.Assert.*;
 
 public class DefaultRavenRequestCreatorTest {
 
@@ -50,10 +51,12 @@ public class DefaultRavenRequestCreatorTest {
         assertThat(r.get("ver"), equalTo("2"));
     }
 
-    @Test(expected = IllegalArgumentException.class)
+    @Test(expected = RuntimeException.class)
     public void testVersionMustBeInteger() {
-        new DefaultRavenRequestCreator(
-            ImmutableMap.of(RequestParam.url, "", RequestParam.ver, "foo"));
+        DefaultRavenRequestCreator.fromFixedValues(
+            ImmutableMap.of(RequestParam.url, "", RequestParam.ver, "foo"))
+        .createLoginRequest(MockMvcRequestBuilders.get("http://example.com/")
+            .buildRequest(null));
     }
 
     @RunWith(Parameterized.class)
@@ -67,7 +70,7 @@ public class DefaultRavenRequestCreatorTest {
 
         @Test(expected = IllegalArgumentException.class)
         public void testRequiredParamsMustBeProvided() {
-            new DefaultRavenRequestCreator(this.values);
+            DefaultRavenRequestCreator.fromFixedValues(this.values);
         }
 
         @Parameterized.Parameters
@@ -143,7 +146,7 @@ public class DefaultRavenRequestCreatorTest {
         @Test
         public void testParams() {
             RavenRequestCreator rrc =
-                new DefaultRavenRequestCreator(getParams());
+                DefaultRavenRequestCreator.fromFixedValues(getParams());
 
             assertContainsAllTestParams(
                 rrc.createLoginRequest(new MockHttpServletRequest()));
