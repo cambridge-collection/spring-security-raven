@@ -237,7 +237,7 @@
     <repository>
       <id>github</id>
       <name>GitHub cambridge-collection Apache Maven Packages</name>
-      <url>https://maven.pkg.github.com/cambridge-collection/cudl-viewer</url>
+      <url>https://maven.pkg.github.com/cambridge-collection/spring-security-raven</url>
     </repository>
   </distributionManagement>
 </project>
